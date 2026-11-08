@@ -1,0 +1,7 @@
+# Documentación local de las skills de ingeniería.
+# Cada integrante la genera en su máquina; no forma parte de la entrega.
+AGENTS.md
+docs/agents/
+
+# Reglas locales del agente en Cursor.
+.cursor/
