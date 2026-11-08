@@ -1,0 +1,83 @@
+name: actividad-iii
+
+services:
+  victima:
+    build: .
+    command: ["python", "-m", "laboratorio", "victima"]
+    networks: [laboratorio]
+    volumes:
+      - copias:/datos/copias
+
+  servidor:
+    build: .
+    command: ["python", "-m", "laboratorio", "servidor"]
+    networks: [laboratorio]
+
+  intermediario:
+    build: .
+    command: ["python", "-m", "laboratorio", "intermediario"]
+    networks: [laboratorio]
+
+  comparacion:
+    build: .
+    command: ["python", "-m", "laboratorio", "comparacion"]
+    networks: [laboratorio]
+    volumes:
+      - ./originales:/datos/originales:ro
+      - copias:/datos/copias
+
+  prueba:
+    build: .
+    command: ["python", "-m", "pytest", "pruebas/test_laboratorio.py", "-q"]
+    networks: [laboratorio]
+    profiles: [prueba]
+    depends_on:
+      - victima
+      - servidor
+      - intermediario
+      - comparacion
+
+  entrega:
+    build: .
+    restart: always
+    command: ["python", "-m", "servidor"]
+    networks: [laboratorio]
+    profiles: [entrega]
+    volumes:
+      - entrega_secreto:/datos/secreto
+      - entrega_registro:/datos/registro
+      - entrega_publico:/datos/publico:ro
+      - entrega_cifrados:/datos/cifrados
+      - entrega_traza_servidor:/datos/traza-servidor
+      - entrega_control:/datos/control
+
+  prueba_entrega:
+    build: .
+    command: ["python", "-m", "pytest", "pruebas/contenedores", "-q"]
+    networks: [laboratorio]
+    profiles: [entrega]
+    depends_on:
+      - entrega
+    volumes:
+      - entrega_registro:/datos/registro:ro
+      - entrega_publico:/datos/publico
+      - entrega_cifrados:/datos/cifrados
+      - entrega_traza_servidor:/datos/traza-servidor:ro
+      - entrega_traza_victima:/datos/traza-victima
+      - entrega_identidad:/datos/identidad
+      - entrega_control:/datos/control
+
+networks:
+  laboratorio:
+    internal: true
+
+volumes:
+  copias:
+  entrega_secreto:
+  entrega_registro:
+  entrega_publico:
+  entrega_cifrados:
+  entrega_traza_servidor:
+  entrega_traza_victima:
+  entrega_identidad:
+  entrega_control:

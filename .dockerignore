@@ -1,0 +1,7 @@
+.git
+.scratch
+docs
+.cursor
+*.pdf
+**/__pycache__
+**/.pytest_cache
