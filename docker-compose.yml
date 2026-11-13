@@ -37,6 +37,16 @@ services:
       - intermediario
       - comparacion
 
+  preparar_entrega:
+    build: .
+    command: ["python", "-m", "laboratorio.preparar_entrega"]
+    networks: [laboratorio]
+    profiles: [entrega]
+    volumes:
+      - entrega_confianza_victima:/datos/confianza_victima
+      - entrega_confianza_servidor:/datos/confianza_servidor
+      - entrega_confianza_intermediario:/datos/confianza_intermediario
+
   entrega:
     build: .
     restart: always
@@ -50,6 +60,7 @@ services:
       - entrega_cifrados:/datos/cifrados
       - entrega_traza_servidor:/datos/traza-servidor
       - entrega_control:/datos/control
+      - entrega_confianza_servidor:/datos/confianza
 
   prueba_entrega:
     build: .
@@ -66,6 +77,8 @@ services:
       - entrega_traza_victima:/datos/traza-victima
       - entrega_identidad:/datos/identidad
       - entrega_control:/datos/control
+      - entrega_confianza_victima:/datos/confianza
+      - entrega_confianza_intermediario:/datos/confianza_intermediario
 
 networks:
   laboratorio:
@@ -81,3 +94,6 @@ volumes:
   entrega_traza_victima:
   entrega_identidad:
   entrega_control:
+  entrega_confianza_victima:
+  entrega_confianza_servidor:
+  entrega_confianza_intermediario:
