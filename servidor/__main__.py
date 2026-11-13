@@ -3,6 +3,14 @@ from pathlib import Path
 
 from Crypto.PublicKey import RSA
 
+from protocolo.firmas import (
+    FirmaInvalida,
+    ROL_S,
+    ROL_V,
+    defensa_activa,
+    firmar,
+    verificar,
+)
 from protocolo.mensajes import (
     PUERTO,
     TIPO_CONFIRMACION,
@@ -22,6 +30,7 @@ TRAZA = Path("/datos/traza-servidor/entrega")
 TRAZA_REGISTRO = Path("/datos/traza-servidor/registro")
 REINICIO = Path("/datos/traza-servidor/reinicio")
 CIERRE = Path("/datos/control/cerrar")
+CONFIANZA = Path("/datos/confianza")
 
 
 def _trazar(id_v, resultado, detalle):
@@ -36,18 +45,37 @@ def _trazar_registro(id_v, detalle):
         salida.write(f"registro {id_v.hex()} ok {detalle}\n")
 
 
+def _trazar_rechazo(id_v, motivo):
+    TRAZA_REGISTRO.parent.mkdir(parents=True, exist_ok=True)
+    with TRAZA_REGISTRO.open("a", encoding="utf-8") as salida:
+        salida.write(f"registro {id_v.hex()} error {motivo}\n")
+
+
 def atender(conexion):
     with conexion:
         tipo, cuerpo = leer(conexion)
         if tipo == TIPO_REGISTRO:
-            id_v, pk_v = desempaquetar(cuerpo)
+            id_v, pk_v, firma_v = desempaquetar(cuerpo)
             clave = RSA.import_key(pk_v)
             if clave.has_private() or clave.e != 65537 or clave.n.bit_length() != 2048:
                 raise ValueError("pkV")
+            if defensa_activa():
+                try:
+                    verificar(
+                        CONFIANZA / "verificacion_victima.pem",
+                        ROL_V,
+                        id_v,
+                        pk_v,
+                        firma_v,
+                    )
+                except FirmaInvalida:
+                    _trazar_rechazo(id_v, "firma-victima")
+                    return
             nueva = anotar_victima(id_v, pk_v)
             pk_s = par_cargado().publickey().export_key(format="DER", pkcs=8)
+            firma_s = firmar(CONFIANZA / "propia.pem", ROL_S, id_v, pk_s)
             _trazar_registro(id_v, "asociada" if nueva else "misma")
-            conexion.sendall(emitir(TIPO_RESPUESTA, empaquetar(id_v, pk_s)))
+            conexion.sendall(emitir(TIPO_RESPUESTA, empaquetar(id_v, pk_s, firma_s)))
             return
         if tipo != TIPO_ENTREGA or len(cuerpo) < 16:
             return
