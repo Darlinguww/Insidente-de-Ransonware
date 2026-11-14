@@ -62,6 +62,16 @@ services:
       - entrega_control:/datos/control
       - entrega_confianza_servidor:/datos/confianza
 
+  intermediario_mitm:
+    build: .
+    command: ["python", "-m", "intermediario"]
+    networks: [laboratorio]
+    profiles: [entrega]
+    volumes:
+      - entrega_confianza_intermediario:/datos/confianza
+      - entrega_interceptado:/datos/interceptado
+      - entrega_traza_mitm:/datos/traza-mitm
+
   prueba_entrega:
     build: .
     command: ["python", "-m", "pytest", "pruebas/contenedores", "-q"]
@@ -69,6 +79,7 @@ services:
     profiles: [entrega]
     depends_on:
       - entrega
+      - intermediario_mitm
     volumes:
       - entrega_registro:/datos/registro:ro
       - entrega_publico:/datos/publico
@@ -79,6 +90,8 @@ services:
       - entrega_control:/datos/control
       - entrega_confianza_victima:/datos/confianza
       - entrega_confianza_intermediario:/datos/confianza_intermediario
+      - entrega_interceptado:/datos/interceptado:ro
+      - entrega_traza_mitm:/datos/traza-mitm:ro
 
 networks:
   laboratorio:
@@ -97,3 +110,5 @@ volumes:
   entrega_confianza_victima:
   entrega_confianza_servidor:
   entrega_confianza_intermediario:
+  entrega_interceptado:
+  entrega_traza_mitm:

@@ -5,6 +5,9 @@ from pathlib import Path
 PUERTO = 5000
 ORIGINALES = Path("/datos/originales")
 COPIAS = Path("/datos/copias")
+ORIGINALES = Path("/datos/originales/notas.txt")
+RECUPERADOS = Path("/datos/recuperados")
+EVIDENCIA = Path("/datos/comparacion")
 
 
 def estado_originales():
@@ -40,7 +43,36 @@ def responder(rol, orden):
         return preparar()
     if orden == "leer-copia":
         return leer_copia()
+    if orden == "comparar" and rol == "comparacion":
+        return comparar()
     return "orden=desconocida"
+
+def comparar():
+    """Compara recuperados vs original. Escribe evidencia y devuelve resumen."""
+    EVIDENCIA.mkdir(parents=True, exist_ok=True)
+    original = ORIGINALES.read_bytes()
+    lineas = []
+    ok = True
+    for nombre in ("0000", "0001", "0002"):
+        ruta = RECUPERADOS / nombre
+        if not ruta.is_file():
+            lineas.append(f"comparacion - error faltante {nombre}")
+            ok = False
+            continue
+        recuperado = ruta.read_bytes()
+        if recuperado == original:
+            lineas.append(f"comparacion - ok {nombre}")
+        else:
+            linea = f"comparacion - error {nombre}"
+            for i, (a, b) in enumerate(zip(original, recuperado)):
+                if a != b:
+                    linea += f" byte={i}"
+                    break
+            lineas.append(linea)
+            ok = False
+    (EVIDENCIA / "comparacion.txt").write_text("\n".join(lineas) + "\n")
+    return "comparado=si" if ok else "comparado=no"
+
 
 
 def main():

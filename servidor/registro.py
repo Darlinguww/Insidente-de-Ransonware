@@ -58,3 +58,22 @@ def guardar(id_v, sv):
     pago = destino / "pago"
     if not pago.is_file():
         pago.write_text("pendiente")
+
+def marcar_pagado(id_v):
+    pago = REGISTRO / "incidentes" / id_v.hex() / "pago"
+    if not pago.is_file():
+        raise LookupError("incidente")
+    pago.write_text("pagado")
+
+
+def leer_sv_pagado(id_v):
+    """Devuelve sV (32 bytes) o lanza LookupError."""
+    incidente = REGISTRO / "incidentes" / id_v.hex()
+    sv = incidente / "sV"
+    pk_v = incidente / "pkV.der"
+    if not (sv.is_file() and pk_v.is_file()):
+        raise LookupError("incidente")
+    datos = sv.read_bytes()
+    if len(datos) != 32:
+        raise LookupError("sv")
+    return datos, pk_v.read_bytes()
