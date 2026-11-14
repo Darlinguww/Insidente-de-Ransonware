@@ -1,5 +1,3 @@
-
-
 ACTIVIDAD III
 
 Empiece por ActividadIII_Enunciado.pdf. Elija A o B y construya su
@@ -22,3 +20,171 @@ por víctima: en el servidor para A o en la víctima para B.
 
 El PDF establece el alcance, las pruebas y la entrega. No hay
 sustentación oral.
+
+================================================================
+CÓMO REPETIR LAS PRUEBAS
+================================================================
+
+DEPENDENCIAS
+- Docker 24+ con `docker compose` (plugin v2).
+- El repositorio clonado con Dockerfile y docker-compose.yml.
+- No hace falta Python en el host: todo corre en contenedores.
+- La red `laboratorio` es interna: no hay salida a Internet ni
+  puertos publicados hacia el host.
+- La imagen instala `cryptography` además de `pycryptodome` y `pytest`.
+
+PREPARACIÓN DEL ENTORNO
+1. Desde la raíz del repo:
+       docker compose build
+       docker compose --profile prueba --profile entrega build --no-cache
+
+   El segundo comando es necesario cuando cambia código que va en
+   `entrega` o `prueba_entrega`: `docker compose build` sin perfil
+   solo construye victima, servidor, intermediario y comparacion.
+
+2. Copia de práctica `notas.txt`:
+   El archivo canónico está en `originales/notas.txt` (64 bytes, LF).
+   No lo edite. `preparar` lo copia al volumen `copias` para que la
+   víctima cifre esa copia, nunca el original.
+
+3. Origen de las claves y la confianza:
+   - Los pares RSA de cifrado (`pkV/skV`, `pkS/skS`) los genera cada
+     participante al iniciar (`protocolo/registro.py` en la víctima,
+     `servidor/claves.py` en el servidor).
+   - Los pares ECDSA de firma y la instalación cruzada de claves de
+     verificación los genera `preparar_entrega`:
+         docker compose --profile entrega run --rm preparar_entrega
+   - La confianza va en `entrega_confianza_victima` y
+     `entrega_confianza_servidor`. El par del intermediario queda en
+     `entrega_confianza_intermediario` y NO se instala en nadie.
+
+4. Modo defensa:
+   - Por defecto la defensa va ENCENDIDA (firma obligatoria).
+   - Solo la prueba de sustitución corre con DEFENSA=off:
+         docker compose run -e DEFENSA=off ...
+
+PRUEBA 1 — PAGO  (carpeta: pruebas/pago/)
+------------------------------------------
+Objetivo: la víctima paga, el servidor devuelve sV cifrada con la
+pkV guardada, la víctima descifra los tres Ci y la comparación los
+iguala byte a byte con el original.
+
+Pasos:
+    docker compose --profile prueba --profile entrega down -v
+    docker compose --profile entrega run --rm preparar_entrega
+    docker compose --profile entrega up -d entrega
+    Start-Sleep -Seconds 5
+    docker compose --profile entrega run --rm prueba_entrega
+    docker compose --profile entrega down -v
+
+Evidencia:
+- `entrega_registro/incidentes/<idV>/pago` = "pagado".
+- `entrega_identidad/` NO contiene `sV` ni `Ki` (solo idV, pkV, skV).
+- Comparación byte a byte en `pruebas/pago/comparacion.txt`.
+
+PRUEBA 2 — INVESTIGACIÓN  (carpeta: pruebas/investigacion/)
+-----------------------------------------------------------
+Objetivo: con el servidor apagado, recuperar la MISMA sV solo con
+una copia de los tres cifrados, sin registro, sin claves privadas,
+sin originales y sin el intermediario.
+
+Pasos (cuando el issue 07 esté implementado):
+    docker compose --profile investigacion run --rm investigacion
+
+Evidencia:
+- Contenedor con solo la copia de los tres cifrados en
+  `pruebas/investigacion/cifrados/`.
+- Informe en `pruebas/investigacion/informe.txt` con entorno,
+  tiempo de búsqueda, candidatas examinadas y tiempo de descifrado.
+- Comparación byte a byte contra `originales/notas.txt`.
+
+PRUEBA 3 — SUSTITUCIÓN  (carpeta: pruebas/mitm/)
+------------------------------------------------
+Objetivo: con la defensa apagada, el intermediario sustituye pkS,
+abre sV, la reenvía cifrada al servidor y conserva sV. Con el
+servidor apagado, descifra copias de los cifrados sin pago.
+
+Pasos (cuando el issue 08 esté implementado):
+    docker compose --profile entrega down -v
+    docker compose --profile entrega run --rm preparar_entrega
+    docker compose --profile entrega up -d intermediario entrega
+    docker compose run -e DEFENSA=off -e DESTINO=intermediario \
+        prueba_entrega
+    docker compose --profile entrega down -v
+
+Evidencia en `pruebas/mitm/`:
+- `traza.txt`: sustitución de pkS, apertura de sV, reenvío.
+- `sV-interceptada.bin`: los 32 bytes que conservó el intermediario.
+- `descifrado-<i>.bin` de cada Ci, con el servidor apagado y sin pago.
+
+PRUEBA 4 — FIRMAS  (carpeta: pruebas/firmas/)
+---------------------------------------------
+Objetivo: con una víctima NUEVA (otro idV) y la defensa ENCENDIDA,
+la sustitución de pkS se detecta antes de enviar sV. Una firma del
+intermediario con sus propias claves se rechaza aunque adjunte su
+clave de verificación. Aparte, un intercambio legítimo completa
+cifrado, reinicio y pago.
+
+Pasos actuales (rechazo y verificación de firmas):
+    docker compose --profile prueba --profile entrega down -v
+    docker compose --profile entrega run --rm preparar_entrega
+    docker compose --profile entrega up -d entrega
+    Start-Sleep -Seconds 5
+    docker compose --profile entrega run --rm prueba_entrega \
+        pytest pruebas/contenedores/test_firmas.py -v
+    docker compose --profile entrega down -v
+
+Evidencia en `pruebas/firmas/`:
+- `traza.txt`: línea `registro <idV> error firma-victima` cuando
+  el servidor rechaza una pkV firmada por el intermediario.
+- En la corrida legítima (cuando el issue 06 esté implementado):
+  cifrado + reinicio + pago + comparación byte a byte.
+
+DÓNDE QUEDA LA EVIDENCIA
+------------------------
+Cada prueba escribe en su carpeta de host:
+    pruebas/pago/
+    pruebas/investigacion/
+    pruebas/mitm/
+    pruebas/firmas/
+
+Trazas dentro de los contenedores (volúmenes del compose):
+    entrega_traza_victima    → /datos/traza-victima/
+    entrega_traza_servidor   → /datos/traza-servidor/
+
+Formato de traza (una línea por paso):
+    <paso> <idV en hex> <resultado> <detalle>
+
+Ejemplos:
+    registro 3f...a1 ok asociada
+    reinicio 3f...a1 ok pendiente
+    entrega  3f...a1 ok confirmada
+    entrega  3f...a1 error no-abre
+    registro 3f...a1 error firma-victima
+
+COMPARACIÓN BYTE A BYTE
+-----------------------
+La comparación solo la ejecuta el servicio `comparacion`, que es el
+único que monta los originales (en solo lectura). Escribe en
+`pruebas/<prueba>/comparacion.txt` una línea por archivo:
+    <prueba> <idV> ok sha256=<hash> iguales=si
+o
+    <prueba> <idV> error sha256=<hash> iguales=no byte=<n>
+
+Un byte distinto es un fallo de la prueba.
+
+AISLAMIENTO ENTRE PRUEBAS
+-------------------------
+- La investigación NO recibe registro, identidad, originales ni el
+  material del intermediario.
+- La sustitución corre con DEFENSA=off; las demás con DEFENSA=on.
+- Cada prueba empieza con `down -v` para no reutilizar sV, idV ni
+  claves de la corrida anterior.
+- El generador suministrado (`generador_semillas.py`) no se toca y su
+  SHA-256 se verifica en `pruebas/test_laboratorio.py`.
+
+GENERADOR SUMINISTRADO
+----------------------
+Intacto. No se modifica. Se llama una sola vez por víctima, en la
+víctima (modelo B). La investigación no lee sus variables internas:
+recorre los enteros 0..2^24-1 codificados en 32 bytes big-endian.
