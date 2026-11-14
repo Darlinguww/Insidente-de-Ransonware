@@ -188,3 +188,17 @@ GENERADOR SUMINISTRADO
 Intacto. No se modifica. Se llama una sola vez por víctima, en la
 víctima (modelo B). La investigación no lee sus variables internas:
 recorre los enteros 0..2^24-1 codificados en 32 bytes big-endian.
+
+
+NOTA PARA WINDOWS
+-----------------
+Si `pruebas/test_laboratorio.py` falla con `\r\n` en `notas.txt` o con un
+hash distinto en `generador_semillas.py`, el clon trajo CRLF. Convierte a
+LF antes de reconstruir:
+
+    python -c "p='generador_semillas.py'; b=open(p,'rb').read(); open(p,'wb').write(b.replace(b'\r\n', b'\n'))"
+    python -c "p='originales/notas.txt'; b=open(p,'rb').read(); open(p,'wb').write(b.replace(b'\r\n', b'\n'))"
+
+Y reconstruye sin cache:
+
+    docker compose --profile prueba --profile entrega build --no-cache
