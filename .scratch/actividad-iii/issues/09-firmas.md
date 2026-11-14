@@ -22,3 +22,11 @@ Implementado en:
 - `pruebas/contenedores/test_firmas.py` (4 tests, dentro de `12 passed`).
 
 Pendiente: el ítem "el intercambio legítimo cifra, reinicia y paga" depende del issue 06 (pago y comparación).
+
+## Answer (item pendiente resuelto)
+
+El item "el intercambio legitimo cifra, reinicia y paga" quedo cubierto:
+- `pruebas/contenedores/test_pago.py` verifica cifrado + pago + descifrado.
+- `pruebas/contenedores/test_reinicio.py` verifica cierre y reinicio.
+- Corrida conjunta: `17 passed` (12 previos + 2 pago + 2 investigacion + 1 mitm).
+
